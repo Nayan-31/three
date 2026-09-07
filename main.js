@@ -4,6 +4,8 @@ import './style.css';
 import * as THREE from 'three';
 // OrbitControls Three.js ka addon hai; mouse/touch se camera control karta hai.
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// lil-gui se screen par sliders aur buttons wala panel banta hai.
+import GUI from 'lil-gui';
 
 // Scene ek 3D container hai; dikhane wale objects ismein add karte hain.
 const scene = new THREE.Scene();
@@ -22,15 +24,64 @@ camera.lookAt(0, 0, 0);
 
 // Geometry shape banati hai; yahan width, height aur depth sab 1 unit hain.
 const geometry = new THREE.BoxGeometry(1, 1, 1);
-// Material object ka look tay karta hai; MeshBasicMaterial ko lights nahi chahiye.
-const material = new THREE.MeshBasicMaterial({
-  color: 'red',
-  wireframe: true, // Solid surface ki jagah geometry ke triangles ki lines dikhao.
+// TextureLoader image load karta hai. public/image.png ka URL /image.png hota hai.
+const textureLoader = new THREE.TextureLoader();
+const matcapTexture = textureLoader.load(`${import.meta.env.BASE_URL}image.png`);
+// Yeh color wali PNG hai, isliye iske colors ko sRGB mein read karo.
+matcapTexture.colorSpace = THREE.SRGBColorSpace;
+
+// Matcap image mein light ka look pehle se hai; scene mein lights nahi chahiye.
+const material = new THREE.MeshMatcapMaterial({
+  matcap: matcapTexture,
+  color: '#ffffff', // White se image ka original color dikhega.
+  wireframe: false, // Surface dikhao, taaki matcap ka look nazar aaye.
 });
 // Mesh = geometry + material, yani scene mein dikhne wala 3D object.
 const cube = new THREE.Mesh(geometry, material);
 // Cube ko scene mein add karna zaroori hai, warna woh render nahi hoga.
 scene.add(cube);
+
+// Panel ki starting values. Inko badalne se scene turant update hoga.
+const settings = {
+  color: '#ffffff',
+  autoRotate: true,
+  speed: 0.6,
+};
+const gui = new GUI({ title: 'Cube controls' });
+
+// Color picker se matcap ke upar tint lagao; white se original look wapas aayega.
+gui.addColor(settings, 'color').name('Color').onChange((value) => {
+  material.color.set(value);
+});
+gui.add(material, 'wireframe').name('Wireframe');
+gui.add(settings, 'autoRotate').name('Auto rotate').listen();
+// Speed radians per second mein hai. 0 par cube ruk jayega.
+gui.add(settings, 'speed', 0, 2, 0.01).name('Speed');
+
+// Folder related sliders ko ek jagah rakhta hai.
+const positionFolder = gui.addFolder('Position');
+// add(object, property, minimum, maximum, step) ek slider banata hai.
+positionFolder.add(cube.position, 'x', -3, 3, 0.01);
+positionFolder.add(cube.position, 'y', -3, 3, 0.01);
+positionFolder.add(cube.position, 'z', -3, 3, 0.01);
+positionFolder.close();
+
+// Rotation radians mein hai. Slider use karte hi auto rotation rok do.
+const rotationFolder = gui.addFolder('Rotation (radians)');
+rotationFolder.add(cube.rotation, 'x', -Math.PI, Math.PI, 0.01);
+rotationFolder.add(cube.rotation, 'y', -Math.PI, Math.PI, 0.01).listen();
+rotationFolder.add(cube.rotation, 'z', -Math.PI, Math.PI, 0.01);
+rotationFolder.onChange(() => {
+  settings.autoRotate = false;
+});
+rotationFolder.close();
+
+// Scale 1 = original size, 2 = us direction mein double size.
+const scaleFolder = gui.addFolder('Scale');
+scaleFolder.add(cube.scale, 'x', 0.1, 3, 0.01);
+scaleFolder.add(cube.scale, 'y', 0.1, 3, 0.01);
+scaleFolder.add(cube.scale, 'z', 0.1, 3, 0.01);
+scaleFolder.close();
 
 // HTML se id="webgl" wala canvas element lo.
 const canvas = document.querySelector('#webgl');
@@ -63,16 +114,21 @@ resize();
 // Window resize hone par resize function dobara chalega.
 window.addEventListener('resize', resize);
 
-// Pehle frame ka time store karenge, taaki animation zero se start ho.
-let startTime;
+// Pichhle frame ka time rakho, taaki rotation ki speed har screen par same rahe.
+let previousTime;
 // Animation loop har frame par time (milliseconds) deta hai.
 function animate(time) {
-  // ??= sirf null/undefined hone par value assign karta hai; yahan pehle frame par.
-  startTime ??= time;
-  // Start se guzra hua time seconds mein convert karo.
-  const elapsedSeconds = (time - startTime) / 1000;
-  // Y-axis ke around 0.6 radians/second ghumao; speed frame rate par depend nahi karti.
-  cube.rotation.y = elapsedSeconds * 0.6;
+  // Pehle frame par starting time set karo.
+  previousTime ??= time;
+  // Do frames ka gap seconds mein lo; tab se wapas aane par bada jump mat hone do.
+  const delta = Math.min((time - previousTime) / 1000, 0.1);
+  previousTime = time;
+  // Checkbox on ho tabhi ghumao. Pause/resume par angle reset nahi hoga.
+  if (settings.autoRotate) {
+    cube.rotation.y += delta * settings.speed;
+    // Angle ko -PI se +PI ke beech rakho, taaki GUI slider ki range mein rahe.
+    if (cube.rotation.y > Math.PI) cube.rotation.y -= Math.PI * 2;
+  }
   // Damping ke liye har frame camera controls update karna zaroori hai.
   controls.update();
   // Rotation badalne ke baad naya frame draw karo, tabhi movement dikhegi.
@@ -89,6 +145,9 @@ if (import.meta.hot) {
     window.removeEventListener('resize', resize);
     // Controls ke mouse/touch listeners hatao, taaki reload par duplicate na hon.
     controls.dispose();
+    // Purana panel hatao aur image ki GPU memory release karo.
+    gui.destroy();
+    matcapTexture.dispose();
     // Geometry, material aur renderer ke GPU resources release karo.
     geometry.dispose();
     material.dispose();
