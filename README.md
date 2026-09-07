@@ -1,6 +1,6 @@
 # Three.js boilerplate
 
-A red wireframe cube on a full-screen black canvas, based on the reference photos.
+A matcap cube on a full-screen black canvas, with OrbitControls and a lil-gui panel.
 
 ## Run locally
 
@@ -22,8 +22,11 @@ The production files are generated in `dist/`.
 
 ## Customize
 
-- `main.js`: scene, camera, cube, renderer, and animation. Change `color`, `wireframe`, or the rotation speed (`0.6` radians per second).
+- `main.js`: scene, camera, cube, renderer, animation, and GUI, explained with Hinglish comments.
+- `public/image.png`: matcap image used by the cube.
 - `style.css`: full-screen canvas styling.
 - `index.html`: canvas and JavaScript entry point.
 
-The animation uses `renderer.setAnimationLoop()` and renders every frame. The resize handler updates both the camera projection and renderer dimensions. `MeshBasicMaterial` does not require lights.
+Use the GUI to change color, wireframe, position, rotation, scale, and animation speed. Editing rotation pauses auto-rotation. GUI changes are temporary and are not saved to source code. Drag on the canvas to orbit, scroll to zoom, or right-drag to pan.
+
+The animation uses `renderer.setAnimationLoop()` and renders every frame. The resize handler updates both the camera projection and renderer dimensions. `MeshMatcapMaterial` uses the image's baked shading and does not require lights.
